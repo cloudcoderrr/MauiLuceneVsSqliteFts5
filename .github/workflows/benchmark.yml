@@ -147,9 +147,9 @@ jobs:
 
       - name: Build app (simulator)
         run: |
-          # The installed .NET 10 iOS SDK pack pins a specific Xcode. Detect it and
+          # The build uses the newest installed .NET 10 iOS SDK pack. Detect it and
           # select the matching Xcode (26.5 -> Xcode 26.6; 26.0 -> Xcode 26.0.1).
-          IOS_PACK=$(ls "$HOME/.dotnet/packs" 2>/dev/null | grep -E 'Microsoft\.iOS\.Sdk\.net10\.0_' | head -1)
+          IOS_PACK=$(ls "$HOME/.dotnet/packs" 2>/dev/null | grep -E 'Microsoft\.iOS\.Sdk\.net10\.0_' | sort -V | tail -1)
           echo "Detected iOS SDK pack: $IOS_PACK"
           if echo "$IOS_PACK" | grep -q '_26\.0$'; then
             sudo xcode-select -s /Applications/Xcode_26.0.1.app
