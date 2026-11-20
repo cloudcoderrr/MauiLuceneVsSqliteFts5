@@ -10,7 +10,10 @@ APK="$1"
 OUT_LOCAL="${2:-android-results}"
 PKG="com.companyname.mauibenchmark"
 ACT="$PKG/com.companyname.mauibenchmark.MainActivity"
-DEVICE_DIR="/sdcard/Android/data/$PKG/files"
+# Use the app's INTERNAL files dir. Files that adb pushes to the external
+# /sdcard/Android/data/<pkg>/files are not visible to the app under scoped
+# storage, so we stage via /data/local/tmp + run-as (the Debug APK is debuggable).
+INTERNAL_DIR="/data/user/0/$PKG/files"
 
 mkdir -p "$OUT_LOCAL"
 
@@ -24,10 +27,10 @@ adb shell input keyevent 82 || true
 echo "Installing $APK"
 adb install -r -g "$APK"
 
-adb shell mkdir -p "$DEVICE_DIR" || true
+adb shell run-as "$PKG" mkdir -p files || true
 
 EXTRAS=(--ez BENCH_AUTORUN true
-        --es BENCH_RESULTS_DIR "$DEVICE_DIR"
+        --es BENCH_RESULTS_DIR "$INTERNAL_DIR"
         --es BENCH_DATASETS "${BENCH_DATASETS:-1000,1000000}"
         --es BENCH_ENGINES "${BENCH_ENGINES:-lucene,fts5}")
 
@@ -36,13 +39,15 @@ if [ -n "${BENCH_MILLION_COUNT:-}" ]; then
 fi
 
 if [ -n "${COLLECTION_DB_LOCAL:-}" ] && [ -f "${COLLECTION_DB_LOCAL}" ]; then
-  echo "Pushing Collection.db ($(wc -c < "$COLLECTION_DB_LOCAL") bytes) to device..."
-  adb push "$COLLECTION_DB_LOCAL" "$DEVICE_DIR/Collection.db"
-  EXTRAS+=(--es BENCH_COLLECTION_DB "$DEVICE_DIR/Collection.db")
+  echo "Staging Collection.db ($(wc -c < "$COLLECTION_DB_LOCAL") bytes) into app internal storage..."
+  adb push "$COLLECTION_DB_LOCAL" /data/local/tmp/Collection.db
+  adb shell run-as "$PKG" cp /data/local/tmp/Collection.db files/Collection.db
+  adb shell rm -f /data/local/tmp/Collection.db || true
+  EXTRAS+=(--es BENCH_COLLECTION_DB "$INTERNAL_DIR/Collection.db")
 fi
 
-echo "Clearing result files and logcat..."
-adb shell rm -f "$DEVICE_DIR/bench-results.json" "$DEVICE_DIR/bench-results.md" || true
+echo "Clearing previous result files and logcat..."
+adb shell run-as "$PKG" rm -f files/bench-results.json files/bench-results.md || true
 adb logcat -c || true
 
 # Capture the full logcat for debugging and marker detection.
@@ -74,8 +79,10 @@ done
 kill "$LOGPID" >/dev/null 2>&1 || true
 
 echo "Pulling results (status=$STATUS)..."
-adb pull "$DEVICE_DIR/bench-results.json" "$OUT_LOCAL/bench-results.json" || true
-adb pull "$DEVICE_DIR/bench-results.md" "$OUT_LOCAL/bench-results.md" || true
+adb exec-out run-as "$PKG" cat files/bench-results.json > "$OUT_LOCAL/bench-results.json" 2>/dev/null || true
+adb exec-out run-as "$PKG" cat files/bench-results.md > "$OUT_LOCAL/bench-results.md" 2>/dev/null || true
+if [ ! -s "$OUT_LOCAL/bench-results.json" ]; then rm -f "$OUT_LOCAL/bench-results.json"; fi
+if [ ! -s "$OUT_LOCAL/bench-results.md" ]; then rm -f "$OUT_LOCAL/bench-results.md"; fi
 
 # Fallback: reconstruct results from logcat (the app also prints the JSON there).
 if [ ! -f "$OUT_LOCAL/bench-results.json" ]; then
