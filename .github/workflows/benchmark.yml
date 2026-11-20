@@ -136,8 +136,8 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Install MAUI iOS workload
-        run: dotnet workload install maui-ios --skip-manifest-update
+      - name: Install MAUI workloads
+        run: dotnet workload install maui-ios maui-android --skip-manifest-update
 
       - name: Build app (simulator)
         run: >
