@@ -121,13 +121,10 @@ jobs:
           disk-size: 14G
           ram-size: 4096M
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # NOTE: android-emulator-runner executes each script line in its own shell,
+          # so environment must be passed inline on the single command line.
           script: |
-            export BENCH_DATASETS="${{ env.DATASETS }}"
-            export BENCH_ENGINES="${{ env.ENGINES }}"
-            export BENCH_MILLION_COUNT="${{ env.MILLION_COUNT }}"
-            if [ -f "$GITHUB_WORKSPACE/Collection.db" ]; then export COLLECTION_DB_LOCAL="$GITHUB_WORKSPACE/Collection.db"; fi
-            echo "COLLECTION_DB_LOCAL=${COLLECTION_DB_LOCAL:-(unset)}"
-            bash scripts/android-run.sh "${{ steps.apk.outputs.path }}" results-android
+            BENCH_DATASETS="${{ env.DATASETS }}" BENCH_ENGINES="${{ env.ENGINES }}" BENCH_MILLION_COUNT="${{ env.MILLION_COUNT }}" COLLECTION_DB_LOCAL="$GITHUB_WORKSPACE/Collection.db" bash scripts/android-run.sh "${{ steps.apk.outputs.path }}" results-android
 
       - uses: actions/upload-artifact@v4
         with:
