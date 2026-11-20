@@ -77,6 +77,18 @@ echo "Pulling results (status=$STATUS)..."
 adb pull "$DEVICE_DIR/bench-results.json" "$OUT_LOCAL/bench-results.json" || true
 adb pull "$DEVICE_DIR/bench-results.md" "$OUT_LOCAL/bench-results.md" || true
 
+# Fallback: reconstruct results from logcat (the app also prints the JSON there).
+if [ ! -f "$OUT_LOCAL/bench-results.json" ]; then
+  echo "Results file not found on device; extracting from logcat..."
+  grep 'FTSBENCH' "$OUT_LOCAL/logcat-full.txt" | sed -E 's/^.*FTSBENCH[^:]*: ?//' > "$OUT_LOCAL/ftsbench.txt"
+  awk '/===BENCH_RESULTS_BEGIN===/{f=1;next} /===BENCH_RESULTS_END===/{f=0} f' "$OUT_LOCAL/ftsbench.txt" > "$OUT_LOCAL/bench-results.json"
+  if [ -s "$OUT_LOCAL/bench-results.json" ]; then
+    echo "Recovered results JSON from logcat ($(wc -c < "$OUT_LOCAL/bench-results.json") bytes)."
+  else
+    rm -f "$OUT_LOCAL/bench-results.json"
+  fi
+fi
+
 echo "===== logcat tail (FTSBENCH) ====="
 grep "FTSBENCH" "$OUT_LOCAL/logcat-full.txt" | tail -n 80 || true
 echo "===== crash tail (if any) ====="
