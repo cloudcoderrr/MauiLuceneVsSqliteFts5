@@ -1,0 +1,195 @@
+name: FTS Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      datasets:
+        description: "Datasets to run (comma list of 1000,1000000,collection)"
+        default: "1000,1000000"
+        type: string
+      engines:
+        description: "Engines (comma list of lucene,fts5)"
+        default: "lucene,fts5"
+        type: string
+      million_count:
+        description: "Record count used for the large synthetic dataset"
+        default: "1000000"
+        type: string
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DATASETS: ${{ github.event.inputs.datasets || '1000,1000000' }}
+  ENGINES: ${{ github.event.inputs.engines || 'lucene,fts5' }}
+  MILLION_COUNT: ${{ github.event.inputs.million_count || '1000000' }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Fetch Collection.db
+        if: contains(env.DATASETS, 'collection')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download collection-db -D db-parts -p "Collection.db.*"
+          pwsh scripts/join-db.ps1 -PartsDir db-parts -Output Collection.db
+
+      - name: Run benchmark (console host)
+        shell: pwsh
+        run: |
+          $env:BENCH_DATASETS = $env:DATASETS
+          $env:BENCH_ENGINES = $env:ENGINES
+          $env:BENCH_MILLION_COUNT = $env:MILLION_COUNT
+          $env:BENCH_RESULTS_DIR = "$PWD/results-windows"
+          $env:BENCH_BUILD_CONFIG = "Release"
+          if (Test-Path "$PWD/Collection.db") { $env:BENCH_COLLECTION_DB = "$PWD/Collection.db" }
+          New-Item -ItemType Directory -Force -Path "$PWD/results-windows" | Out-Null
+          dotnet run --project src/Benchmarks.ConsoleRunner/Benchmarks.ConsoleRunner.csproj -c Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: results-windows
+          path: results-windows/
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android --skip-manifest-update
+
+      - name: Ensure Android SDK platform 36
+        run: |
+          SDKMGR=$(find "$ANDROID_SDK_ROOT" "$ANDROID_HOME" -name sdkmanager -type f 2>/dev/null | head -1)
+          echo "sdkmanager: $SDKMGR"
+          yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+          "$SDKMGR" "platform-tools" "platforms;android-36" "build-tools;36.0.0" || true
+
+      - name: Build APK
+        run: >
+          dotnet build src/MauiBenchmark/MauiBenchmark.csproj
+          -c Debug -f net10.0-android
+          -p:EmbedAssembliesIntoApk=true -p:AndroidPackageFormat=apk
+
+      - name: Locate APK
+        id: apk
+        run: echo "path=$(find src/MauiBenchmark/bin -name '*-Signed.apk' | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch Collection.db
+        if: contains(env.DATASETS, 'collection')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download collection-db -D db-parts -p "Collection.db.*"
+          bash scripts/join-db.sh db-parts Collection.db
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run benchmark on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disk-size: 14G
+          ram-size: 4096M
+          emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            export BENCH_DATASETS="${DATASETS}"
+            export BENCH_ENGINES="${ENGINES}"
+            export BENCH_MILLION_COUNT="${MILLION_COUNT}"
+            if [ -f "$PWD/Collection.db" ]; then export COLLECTION_DB_LOCAL="$PWD/Collection.db"; fi
+            bash scripts/android-run.sh "${{ steps.apk.outputs.path }}" results-android
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: results-android
+          path: results-android/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: ${{ steps.apk.outputs.path }}
+
+  ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install MAUI iOS workload
+        run: dotnet workload install maui-ios --skip-manifest-update
+
+      - name: Build app (simulator)
+        run: >
+          dotnet build src/MauiBenchmark/MauiBenchmark.csproj
+          -c Debug -f net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
+
+      - name: Locate .app
+        id: app
+        run: echo "path=$(find src/MauiBenchmark/bin -name 'MauiBenchmark.app' -type d | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch Collection.db
+        if: contains(env.DATASETS, 'collection')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download collection-db -D db-parts -p "Collection.db.*"
+          bash scripts/join-db.sh db-parts Collection.db
+
+      - name: Run benchmark on simulator
+        run: |
+          export BENCH_DATASETS="${DATASETS}"
+          export BENCH_ENGINES="${ENGINES}"
+          export BENCH_MILLION_COUNT="${MILLION_COUNT}"
+          if [ -f "$PWD/Collection.db" ]; then export COLLECTION_DB_LOCAL="$PWD/Collection.db"; fi
+          bash scripts/ios-run.sh "${{ steps.app.outputs.path }}" results-ios
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: results-ios
+          path: results-ios/
+
+  report:
+    needs: [windows, android, ios]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Build summary
+        run: |
+          {
+            echo "# FTS Benchmark results"
+            echo
+            for f in artifacts/results-*/bench-results.md; do
+              [ -f "$f" ] || continue
+              echo "---"
+              cat "$f"
+              echo
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: all-results
+          path: artifacts/

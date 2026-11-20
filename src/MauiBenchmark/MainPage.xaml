@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MauiBenchmark.MainPage"
+             Title="Lucene.NET vs SQLite FTS5">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="14">
+
+            <Label Text="FTS Benchmark" FontSize="26" FontAttributes="Bold" />
+            <Label Text="Lucene.NET vs SQLite FTS5" FontSize="16" TextColor="Gray" />
+
+            <Label Text="Datasets" FontAttributes="Bold" Margin="0,8,0,0" />
+            <HorizontalStackLayout Spacing="6">
+                <CheckBox x:Name="Ds1000" IsChecked="True" />
+                <Label Text="1,000" VerticalOptions="Center" />
+                <CheckBox x:Name="Ds1M" IsChecked="True" />
+                <Label Text="1,000,000" VerticalOptions="Center" />
+                <CheckBox x:Name="DsCollection" IsChecked="True" />
+                <Label Text="Collection.db" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <Label Text="Engines" FontAttributes="Bold" />
+            <HorizontalStackLayout Spacing="6">
+                <CheckBox x:Name="EngLucene" IsChecked="True" />
+                <Label Text="Lucene.NET" VerticalOptions="Center" />
+                <CheckBox x:Name="EngFts5" IsChecked="True" />
+                <Label Text="SQLite FTS5" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <Label x:Name="CollectionPathLabel" Text="Collection.db: (not selected)" FontSize="12" TextColor="Gray" />
+            <Button x:Name="PickDbBtn" Text="Pick Collection.db…" Clicked="OnPickDbClicked" />
+
+            <Button x:Name="RunBtn" Text="Run Benchmarks" Clicked="OnRunClicked" HorizontalOptions="Fill" />
+
+            <HorizontalStackLayout Spacing="10">
+                <ActivityIndicator x:Name="Busy" IsRunning="False" />
+                <Label x:Name="StatusLabel" Text="Idle" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <Button x:Name="ShareBtn" Text="Share Results" Clicked="OnShareClicked" IsEnabled="False" />
+
+            <Label Text="Results" FontAttributes="Bold" Margin="0,8,0,0" />
+            <Border Stroke="LightGray" StrokeThickness="1" Padding="8">
+                <Label x:Name="ResultsLabel" Text="(no results yet)" FontFamily="Consolas" FontSize="12" />
+            </Border>
+
+            <Label Text="Log" FontAttributes="Bold" Margin="0,8,0,0" />
+            <Border Stroke="LightGray" StrokeThickness="1" Padding="8">
+                <Label x:Name="LogLabel" Text="" FontFamily="Consolas" FontSize="11" />
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

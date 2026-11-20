@@ -1,0 +1,3 @@
+# Shell scripts must stay LF and executable for Linux/macOS CI runners.
+*.sh text eol=lf
+scripts/*.sh text eol=lf

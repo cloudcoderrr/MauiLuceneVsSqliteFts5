@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Benchmarks.ConsoleRunner/Benchmarks.ConsoleRunner.csproj" />
+    <Project Path="src/Benchmarks.Core/Benchmarks.Core.csproj" />
+    <Project Path="src/MauiBenchmark/MauiBenchmark.csproj" />
+  </Folder>
+</Solution>
