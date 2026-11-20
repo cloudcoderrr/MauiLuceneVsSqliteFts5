@@ -129,7 +129,7 @@ jobs:
           path: ${{ steps.apk.outputs.path }}
 
   ios:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
