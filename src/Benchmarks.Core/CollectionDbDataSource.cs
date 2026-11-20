@@ -43,9 +43,16 @@ public sealed class CollectionDbDataSource : IDocumentSource
     // and is tokenized by both Lucene StandardAnalyzer and FTS5 unicode61.
     public string QueryTerm => "container";
 
-    private SqliteConnection Open()
+    private SqliteConnection Open() => Open(_dbPath);
+
+    private static SqliteConnection Open(string dbPath)
     {
-        var conn = new SqliteConnection($"Data Source={_dbPath};Mode=ReadOnly");
+        // The source DB is in WAL mode; opening it read-only normally tries to create
+        // -wal/-shm files next to it, which fails when the directory is not writable
+        // (e.g. staged under /data/local/tmp on Android). immutable=1 reads the main
+        // database directly without any side files or locking.
+        var uri = new Uri(Path.GetFullPath(dbPath)).AbsoluteUri;
+        var conn = new SqliteConnection($"Data Source={uri}?immutable=1");
         conn.Open();
         EnglishCollation.Register(conn);
         return conn;
@@ -88,9 +95,7 @@ public sealed class CollectionDbDataSource : IDocumentSource
     public static string DetectLargestNotesTable(string dbPath)
     {
         SqliteInit.Ensure();
-        using var conn = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
-        conn.Open();
-        EnglishCollation.Register(conn);
+        using var conn = Open(dbPath);
 
         var candidates = new List<string>();
         using (var cmd = conn.CreateCommand())
