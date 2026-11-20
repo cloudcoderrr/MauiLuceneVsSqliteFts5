@@ -18,8 +18,17 @@ xcrun simctl list runtimes ios
 RUNTIME=$(xcrun simctl list runtimes ios -j | python3 -c "import sys,json; r=[x for x in json.load(sys.stdin)['runtimes'] if x.get('isAvailable')]; print(sorted(r, key=lambda x: x['version'])[-1]['identifier'])")
 echo "Using runtime: $RUNTIME"
 
-# Choose an iPhone device type that the runtime supports.
-DEVTYPE=$(xcrun simctl list devicetypes -j | python3 -c "import sys,json; d=[x for x in json.load(sys.stdin)['devicetypes'] if 'iPhone' in x['name']]; print(sorted(d, key=lambda x: x['name'])[-1]['identifier'])")
+# Choose a modern numbered iPhone (e.g. iPhone 17) compatible with the latest runtime.
+DEVTYPE=$(xcrun simctl list devicetypes -j | python3 -c "
+import sys, json, re
+data = json.load(sys.stdin)['devicetypes']
+def num(x):
+    m = re.search(r'iPhone (\d+)', x['name'])
+    return int(m.group(1)) if m else -1
+cands = [x for x in data if num(x) >= 14]
+cands.sort(key=num)
+print((cands[-1] if cands else [x for x in data if 'iPhone' in x['name']][-1])['identifier'])
+")
 echo "Using device type: $DEVTYPE"
 
 UDID=$(xcrun simctl create "bench-iphone" "$DEVTYPE" "$RUNTIME")
