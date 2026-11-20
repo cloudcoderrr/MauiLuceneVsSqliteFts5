@@ -15,6 +15,10 @@ on:
         description: "Record count used for the large synthetic dataset"
         default: "1000000"
         type: string
+      only_ios:
+        description: "Run only the iOS job (skip Windows/Android)"
+        default: false
+        type: boolean
 
 concurrency:
   group: bench-${{ github.ref }}
@@ -27,6 +31,7 @@ env:
 
 jobs:
   windows:
+    if: ${{ github.event.inputs.only_ios != 'true' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +66,7 @@ jobs:
           path: results-windows/
 
   android:
+    if: ${{ github.event.inputs.only_ios != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -137,18 +143,15 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Install MAUI workloads
-        run: dotnet workload install maui-ios maui-android
-
-      - name: iOS toolchain diagnostics
-        run: |
-          xcodebuild -version || true
-          ls /Applications | grep -i "Xcode" || true
-          ls "$HOME/.dotnet/packs" 2>/dev/null | grep -i ios || true
+        run: dotnet workload install maui-ios maui-android --skip-manifest-update
 
       - name: Build app (simulator)
-        run: >
-          dotnet build src/MauiBenchmark/MauiBenchmark.csproj
-          -c Debug -f net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
+        run: |
+          # The .NET 10 iOS workload (Microsoft.iOS 26.0) pins to Xcode 26.0.
+          sudo xcode-select -s /Applications/Xcode_26.0.app
+          xcodebuild -version
+          dotnet build src/MauiBenchmark/MauiBenchmark.csproj \
+            -c Debug -f net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
 
       - name: Locate .app
         id: app
@@ -164,6 +167,8 @@ jobs:
 
       - name: Run benchmark on simulator
         run: |
+          # Use the default (newest) Xcode so the latest simulator runtime is bootable.
+          sudo xcode-select -s /Applications/Xcode_26.6.app
           export BENCH_DATASETS="${DATASETS}"
           export BENCH_ENGINES="${ENGINES}"
           export BENCH_MILLION_COUNT="${MILLION_COUNT}"
