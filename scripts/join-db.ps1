@@ -11,7 +11,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$parts = Get-ChildItem -Path $PartsDir -Filter "Collection.db.[0-9][0-9][0-9]" | Sort-Object Name
+$parts = Get-ChildItem -Path $PartsDir -File |
+    Where-Object { $_.Name -match '^Collection\.db\.\d{3}$' } |
+    Sort-Object Name
 if ($parts.Count -eq 0) {
     throw "No parts found in $PartsDir (expected Collection.db.000, .001, ...)"
 }

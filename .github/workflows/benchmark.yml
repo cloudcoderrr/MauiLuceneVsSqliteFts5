@@ -129,7 +129,7 @@ jobs:
           path: ${{ steps.apk.outputs.path }}
 
   ios:
-    runs-on: macos-14
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -142,7 +142,7 @@ jobs:
       - name: Build app (simulator)
         run: >
           dotnet build src/MauiBenchmark/MauiBenchmark.csproj
-          -c Debug -f net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
+          -c Debug -f net10.0-ios -p:RuntimeIdentifier=iossimulator-x64
 
       - name: Locate .app
         id: app
