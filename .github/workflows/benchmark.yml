@@ -19,6 +19,10 @@ on:
         description: "Run only the iOS job (skip Windows/Android)"
         default: false
         type: boolean
+      only_android:
+        description: "Run only the Android job (skip Windows/iOS)"
+        default: false
+        type: boolean
 
 concurrency:
   group: bench-${{ github.ref }}
@@ -31,7 +35,7 @@ env:
 
 jobs:
   windows:
-    if: ${{ github.event.inputs.only_ios != 'true' }}
+    if: ${{ github.event.inputs.only_ios != 'true' && github.event.inputs.only_android != 'true' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +125,8 @@ jobs:
             export BENCH_DATASETS="${{ env.DATASETS }}"
             export BENCH_ENGINES="${{ env.ENGINES }}"
             export BENCH_MILLION_COUNT="${{ env.MILLION_COUNT }}"
-            if [ -f "$PWD/Collection.db" ]; then export COLLECTION_DB_LOCAL="$PWD/Collection.db"; fi
+            if [ -f "$GITHUB_WORKSPACE/Collection.db" ]; then export COLLECTION_DB_LOCAL="$GITHUB_WORKSPACE/Collection.db"; fi
+            echo "COLLECTION_DB_LOCAL=${COLLECTION_DB_LOCAL:-(unset)}"
             bash scripts/android-run.sh "${{ steps.apk.outputs.path }}" results-android
 
       - uses: actions/upload-artifact@v4
@@ -135,6 +140,7 @@ jobs:
           path: ${{ steps.apk.outputs.path }}
 
   ios:
+    if: ${{ github.event.inputs.only_android != 'true' }}
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
