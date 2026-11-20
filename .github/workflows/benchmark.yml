@@ -93,7 +93,6 @@ jobs:
           dotnet build src/MauiBenchmark/MauiBenchmark.csproj
           -c Release -f net10.0-android
           -p:RunAOTCompilation=true -p:AndroidLinkMode=SdkOnly
-          -p:RuntimeIdentifiers=android-x64
           -p:EmbedAssembliesIntoApk=true -p:AndroidPackageFormat=apk
 
       - name: Locate APK
