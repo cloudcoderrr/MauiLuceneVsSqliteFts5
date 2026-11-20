@@ -15,6 +15,9 @@ public sealed class LuceneSearchEngine : ISearchEngine
     private const string HeadwordField = "headword";
     private const string ContentField = "content";
 
+    // RAM buffer used for bulk index creation. Kept moderate so it is safe on mobile heaps.
+    private const double BulkRamBufferMB = 64;
+
     private readonly string _indexDir;
     private DirectoryReader? _reader;
     private IndexSearcher? _searcher;
@@ -45,6 +48,10 @@ public sealed class LuceneSearchEngine : ISearchEngine
         var config = new IndexWriterConfig(Version, analyzer)
         {
             OpenMode = OpenMode.CREATE,
+            // Bulk-import tuning: a large RAM buffer flushes far fewer, larger segments,
+            // and skipping the compound-file format avoids packing work during the build.
+            RAMBufferSizeMB = BulkRamBufferMB,
+            UseCompoundFile = false,
         };
         using var writer = new IndexWriter(dir, config);
 
