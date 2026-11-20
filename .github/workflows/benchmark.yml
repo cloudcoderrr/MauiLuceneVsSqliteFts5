@@ -137,7 +137,13 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Install MAUI workloads
-        run: dotnet workload install maui-ios maui-android --skip-manifest-update
+        run: dotnet workload install maui-ios maui-android
+
+      - name: iOS toolchain diagnostics
+        run: |
+          xcodebuild -version || true
+          ls /Applications | grep -i "Xcode" || true
+          ls "$HOME/.dotnet/packs" 2>/dev/null | grep -i ios || true
 
       - name: Build app (simulator)
         run: >
