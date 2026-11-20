@@ -10,6 +10,8 @@ public static class BenchmarkHost
 {
     public const string ResultsBeginMarker = "===BENCH_RESULTS_BEGIN===";
     public const string ResultsEndMarker = "===BENCH_RESULTS_END===";
+    public const string MarkdownBeginMarker = "===BENCH_MD_BEGIN===";
+    public const string MarkdownEndMarker = "===BENCH_MD_END===";
     public const string DoneMarker = "===BENCH_DONE===";
     public const string ErrorMarker = "===BENCH_ERROR===";
 
@@ -91,8 +93,9 @@ public static class BenchmarkHost
         }
 
         console(string.Empty);
+        console(MarkdownBeginMarker);
         console(markdown);
-        console(string.Empty);
+        console(MarkdownEndMarker);
         console(ResultsBeginMarker);
         console(json);
         console(ResultsEndMarker);
