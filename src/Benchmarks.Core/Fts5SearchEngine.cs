@@ -34,7 +34,9 @@ public sealed class Fts5SearchEngine : ISearchEngine
         }
 
         using var conn = Open();
-        Exec(conn, "PRAGMA journal_mode=WAL;");
+        // Use the default rollback journal (not WAL): the index is built by a single writer and
+        // then read back, and a read-only connection cannot reliably read a WAL database on all
+        // platforms (notably Android), which produced 0 hits / truncated files there.
         Exec(conn, "PRAGMA synchronous=NORMAL;");
         Exec(conn, "CREATE VIRTUAL TABLE docs USING fts5(headword, content, tokenize='unicode61');");
 
@@ -64,8 +66,6 @@ public sealed class Fts5SearchEngine : ISearchEngine
             tx.Commit();
         }
 
-        // Fold the WAL back into the main db so the on-disk size is representative.
-        Exec(conn, "PRAGMA wal_checkpoint(TRUNCATE);");
         return count;
     }
 

@@ -45,8 +45,8 @@ echo "Clearing result files and logcat..."
 adb shell rm -f "$DEVICE_DIR/bench-results.json" "$DEVICE_DIR/bench-results.md" || true
 adb logcat -c || true
 
-# Stream our tagged log to a file in the background.
-adb logcat -v time FTSBENCH:I '*:S' > "$OUT_LOCAL/logcat.txt" 2>&1 &
+# Capture the full logcat for debugging and marker detection.
+adb logcat -v time > "$OUT_LOCAL/logcat-full.txt" 2>&1 &
 LOGPID=$!
 
 echo "Launching: adb shell am start -n $ACT ${EXTRAS[*]}"
@@ -54,11 +54,20 @@ adb shell am start -n "$ACT" "${EXTRAS[@]}"
 
 echo "Waiting for benchmark to finish..."
 DEADLINE=$(( SECONDS + 10800 ))
+START_GRACE=$(( SECONDS + 90 ))
 STATUS="timeout"
 while [ $SECONDS -lt $DEADLINE ]; do
-  if grep -q "===BENCH_DONE===" "$OUT_LOCAL/logcat.txt" 2>/dev/null; then STATUS="done"; break; fi
-  if grep -q "===BENCH_ERROR===" "$OUT_LOCAL/logcat.txt" 2>/dev/null; then STATUS="error"; fi
-  # Stop early if the app process died unexpectedly without a DONE marker.
+  if grep -q "===BENCH_DONE===" "$OUT_LOCAL/logcat-full.txt" 2>/dev/null; then STATUS="done"; break; fi
+  if grep -q "===BENCH_ERROR===" "$OUT_LOCAL/logcat-full.txt" 2>/dev/null; then STATUS="error"; sleep 5; break; fi
+  # Fast-fail if the app process died without finishing (crash).
+  if [ $SECONDS -gt $START_GRACE ]; then
+    if [ -z "$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')" ]; then
+      echo "App process is no longer running; waiting briefly for final logs..."
+      sleep 10
+      if grep -q "===BENCH_DONE===" "$OUT_LOCAL/logcat-full.txt" 2>/dev/null; then STATUS="done"; else STATUS="crashed"; fi
+      break
+    fi
+  fi
   sleep 10
 done
 
@@ -68,8 +77,10 @@ echo "Pulling results (status=$STATUS)..."
 adb pull "$DEVICE_DIR/bench-results.json" "$OUT_LOCAL/bench-results.json" || true
 adb pull "$DEVICE_DIR/bench-results.md" "$OUT_LOCAL/bench-results.md" || true
 
-echo "===== logcat tail ====="
-tail -n 60 "$OUT_LOCAL/logcat.txt" || true
+echo "===== logcat tail (FTSBENCH) ====="
+grep "FTSBENCH" "$OUT_LOCAL/logcat-full.txt" | tail -n 80 || true
+echo "===== crash tail (if any) ====="
+grep -E "AndroidRuntime|FATAL|mono-rt|monodroid" "$OUT_LOCAL/logcat-full.txt" | tail -n 40 || true
 
 if [ ! -f "$OUT_LOCAL/bench-results.json" ]; then
   echo "No results produced (status=$STATUS)" >&2

@@ -112,9 +112,9 @@ jobs:
           ram-size: 4096M
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            export BENCH_DATASETS="${DATASETS}"
-            export BENCH_ENGINES="${ENGINES}"
-            export BENCH_MILLION_COUNT="${MILLION_COUNT}"
+            export BENCH_DATASETS="${{ env.DATASETS }}"
+            export BENCH_ENGINES="${{ env.ENGINES }}"
+            export BENCH_MILLION_COUNT="${{ env.MILLION_COUNT }}"
             if [ -f "$PWD/Collection.db" ]; then export COLLECTION_DB_LOCAL="$PWD/Collection.db"; fi
             bash scripts/android-run.sh "${{ steps.apk.outputs.path }}" results-android
 

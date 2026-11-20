@@ -28,9 +28,19 @@ public sealed class LuceneSearchEngine : ISearchEngine
 
     public string Name => "Lucene.NET";
 
+    // Each index directory is only ever written by a single writer at a time in this benchmark,
+    // so we disable file locking. Native FS locks are unreliable on some mobile filesystems
+    // and can cause "Lock obtain timed out" errors.
+    private static FSDirectory OpenDir(string path)
+    {
+        var dir = FSDirectory.Open(new DirectoryInfo(path));
+        dir.SetLockFactory(NoLockFactory.GetNoLockFactory());
+        return dir;
+    }
+
     public long CreateIndex(IDocumentSource source, Action<long>? progress = null)
     {
-        using var dir = FSDirectory.Open(new DirectoryInfo(_indexDir));
+        using var dir = OpenDir(_indexDir);
         using var analyzer = new StandardAnalyzer(Version);
         var config = new IndexWriterConfig(Version, analyzer)
         {
@@ -57,7 +67,7 @@ public sealed class LuceneSearchEngine : ISearchEngine
 
     public void PrepareQuery()
     {
-        _searchDirectory = FSDirectory.Open(new DirectoryInfo(_indexDir));
+        _searchDirectory = OpenDir(_indexDir);
         _reader = DirectoryReader.Open(_searchDirectory);
         _searcher = new IndexSearcher(_reader);
     }
@@ -79,7 +89,7 @@ public sealed class LuceneSearchEngine : ISearchEngine
 
     public void Insert(IReadOnlyList<SearchDocument> documents)
     {
-        using var dir = FSDirectory.Open(new DirectoryInfo(_indexDir));
+        using var dir = OpenDir(_indexDir);
         using var analyzer = new StandardAnalyzer(Version);
         var config = new IndexWriterConfig(Version, analyzer)
         {
