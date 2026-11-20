@@ -147,11 +147,11 @@ jobs:
 
       - name: Build app (simulator)
         run: |
-          # The .NET 10 iOS workload (Microsoft.iOS 26.0) pins to Xcode 26.0.
+          # The .NET 10 iOS workload (Microsoft.iOS 26.0) pins to Xcode 26.0,
+          # whose iOS 26.0 SDK needs a matching 26.0 simulator runtime for actool.
           sudo xcode-select -s /Applications/Xcode_26.0.1.app
           xcodebuild -version
-          xcrun --sdk iphonesimulator --show-sdk-path || true
-          ls /Applications/Xcode_26.0.1.app/Contents/Developer/Platforms/ || true
+          xcodes runtimes install "iOS 26.0" || sudo xcodebuild -downloadPlatform iOS -buildVersion 26.0 || true
           dotnet build src/MauiBenchmark/MauiBenchmark.csproj \
             -c Debug -f net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
 
