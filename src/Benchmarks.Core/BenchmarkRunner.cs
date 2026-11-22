@@ -16,6 +16,9 @@ public sealed class BenchmarkRunner
         _log = log;
     }
 
+    private int QueryWarmupRounds => Math.Max(0, _config.QueryWarmupRounds);
+    private int QueryTimedRounds => Math.Max(1, _config.QueryRepeat);
+
     public BenchmarkReport Run(BenchmarkEnvironment environment, CancellationToken cancellationToken = default)
     {
         SqliteInit.Ensure();
@@ -24,6 +27,9 @@ public sealed class BenchmarkRunner
         {
             Environment = environment,
             StartedUtc = DateTime.UtcNow,
+            QueryTopN = _config.QueryTopN,
+            QueryWarmupRounds = QueryWarmupRounds,
+            QueryTimedRounds = QueryTimedRounds,
         };
 
         Directory.CreateDirectory(_config.WorkRoot);
@@ -100,32 +106,8 @@ public sealed class BenchmarkRunner
 
             ct.ThrowIfCancellationRequested();
 
-            // Run each query type the engine supports (average of several runs after a warmup).
             engine.PrepareQuery();
-            foreach (var q in engine.GetQueries(source))
-            {
-                ct.ThrowIfCancellationRequested();
-                var qr = new QueryResult { Name = q.Name };
-                try
-                {
-                    qr.Hits = q.CountHits();
-                    q.Run(_config.QueryTopN); // warmup
-                    var qsw = Stopwatch.StartNew();
-                    for (int i = 0; i < _config.QueryRepeat; i++)
-                    {
-                        q.Run(_config.QueryTopN);
-                    }
-                    qsw.Stop();
-                    qr.Ms = qsw.Elapsed.TotalMilliseconds / Math.Max(1, _config.QueryRepeat);
-                    _log?.Invoke($"[{engineName}] {dataset.Name}: {q.Name} {qr.Ms:N2} ms avg, {qr.Hits:N0} hits");
-                }
-                catch (Exception ex)
-                {
-                    qr.Error = ex.Message;
-                    _log?.Invoke($"[{engineName}] {dataset.Name}: {q.Name} ERROR {ex.Message}");
-                }
-                entry.Queries.Add(qr);
-            }
+            MeasureQueries(engine.GetQueries(source), entry, ct);
 
             ct.ThrowIfCancellationRequested();
 
@@ -155,6 +137,74 @@ public sealed class BenchmarkRunner
         }
 
         return entry;
+    }
+
+    private void MeasureQueries(IReadOnlyList<EngineQuery> queries, BenchmarkEntry entry, CancellationToken ct)
+    {
+        var measurements = queries.Select(query => (Query: query, Result: new QueryResult { Name = query.Name })).ToArray();
+        _log?.Invoke($"[{entry.Engine}] {entry.Dataset}: {QueryWarmupRounds} query warmup rounds, {QueryTimedRounds} timed rounds");
+        RunQueryRounds(measurements, QueryWarmupRounds, timed: false, ct);
+        RunQueryRounds(measurements, QueryTimedRounds, timed: true, ct);
+
+        foreach (var (query, result) in measurements)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (result.Error is null)
+            {
+                try
+                {
+                    result.Hits = query.CountHits();
+                    result.Ms /= QueryTimedRounds;
+                }
+                catch (Exception ex)
+                {
+                    result.Error = ex.Message;
+                }
+            }
+
+            if (result.Error is null)
+            {
+                _log?.Invoke($"[{entry.Engine}] {entry.Dataset}: {result.Name} {result.Ms:N2} ms avg, {result.Hits:N0} hits");
+            }
+            else
+            {
+                result.Ms = 0;
+                _log?.Invoke($"[{entry.Engine}] {entry.Dataset}: {result.Name} ERROR {result.Error}");
+            }
+            entry.Queries.Add(result);
+        }
+    }
+
+    private void RunQueryRounds(
+        (EngineQuery Query, QueryResult Result)[] measurements, int rounds, bool timed, CancellationToken ct)
+    {
+        // Rotate the starting query each round to distribute the effect of execution order.
+        for (int round = 0; round < rounds; round++)
+        {
+            for (int offset = 0; offset < measurements.Length; offset++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var (query, result) = measurements[(round + offset) % measurements.Length];
+                if (result.Error is not null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    long started = timed ? Stopwatch.GetTimestamp() : 0;
+                    query.Run(_config.QueryTopN);
+                    if (timed)
+                    {
+                        result.Ms += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.Error = ex.Message;
+                }
+            }
+        }
     }
 
     private ISearchEngine CreateEngine(string engineName, string workDir) => engineName switch
@@ -221,6 +271,7 @@ public sealed class BenchmarkRunner
         sb.AppendLine($"- Architecture: {env.Architecture} ({(env.Is64Bit ? "64-bit" : "32-bit")}), {env.ProcessorCount} CPUs");
         sb.AppendLine($"- Runtime: {env.RuntimeDescription}");
         sb.AppendLine($"- Build: {env.BuildConfiguration}");
+        sb.AppendLine($"- Queries: top {report.QueryTopN}, {report.QueryWarmupRounds} warmup rounds, {report.QueryTimedRounds} timed rounds");
         sb.AppendLine($"- Started (UTC): {report.StartedUtc:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine($"- Duration: {(report.FinishedUtc - report.StartedUtc).TotalSeconds:N0} s");
         sb.AppendLine();

@@ -59,6 +59,9 @@ public sealed class BenchmarkReport
     public BenchmarkEnvironment Environment { get; set; } = new();
     public DateTime StartedUtc { get; set; }
     public DateTime FinishedUtc { get; set; }
+    public int QueryTopN { get; set; }
+    public int QueryWarmupRounds { get; set; }
+    public int QueryTimedRounds { get; set; }
     public List<BenchmarkEntry> Entries { get; set; } = new();
 }
 

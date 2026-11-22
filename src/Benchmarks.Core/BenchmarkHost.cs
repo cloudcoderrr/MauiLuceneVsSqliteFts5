@@ -56,6 +56,7 @@ public static class BenchmarkHost
         if (TryLong(get("MILLION_COUNT"), out var million)) config.MillionCount = million;
         if (TryInt(get("INSERT_COUNT"), out var insert)) config.InsertCount = insert;
         if (TryInt(get("QUERY_TOPN"), out var topN)) config.QueryTopN = topN;
+        if (TryInt(get("QUERY_WARMUP"), out var warmup)) config.QueryWarmupRounds = warmup;
         if (TryInt(get("QUERY_REPEAT"), out var repeat)) config.QueryRepeat = repeat;
 
         return config;

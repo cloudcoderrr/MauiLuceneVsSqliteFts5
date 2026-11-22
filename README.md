@@ -1,17 +1,21 @@
 # MauiLuceneVsSqliteFts5
 
-A .NET MAUI benchmark app comparing **Lucene.NET** and **SQLite FTS5** full-text search on
-**Android, Windows and iOS**.
+A .NET MAUI benchmark app comparing **Lucene.NET**, **SQLite FTS5**, and **SQLite B-tree
+lookups** on **Android, Windows and iOS**.
 
 ## What it measures
 
 For each engine (Lucene.NET, SQLite FTS5, SQLite plain index) and each dataset (1,000 synthetic
 records, 1,000,000 synthetic records, and the real `Collection.db` dictionary table):
 
-1. **Create index** time
-2. **Simple query** time (full-text search for a common term; average of several runs)
-3. **Simple insert** time (inserting new records into the already-built index)
-4. **Storage usage** of the built index
+1. **Index build time** and **storage** after the build.
+2. **Mean query latency** and **hit count** for each supported query.
+3. **Total and per-record time** to insert 1,000 records into the built index.
+
+By default, each query runs in **15 untimed warmup rounds** and **30 timed rounds**.
+Each round runs every query for the current engine and dataset once, rotating the starting
+query. The benchmark times searches for up to 50 results and counts total hits afterward.
+Query settings are included in the JSON and Markdown reports.
 
 ### Engines and queries
 
@@ -19,7 +23,8 @@ Three engines are benchmarked:
 
 - **Lucene.NET** (`StandardAnalyzer`). Index creation uses **bulk-import tuning** (a 64 MB RAM
   buffer and no compound file). Query types measured: *Simple* (term), *Fuzzy* (1 and 2 edits),
-  *Wildcard*, *Regexp*, and *Leading wildcard*.
+  *Wildcard*, *Regexp*, and *Leading wildcard*. The term query ranks by relevance. Wildcard
+  and regexp queries use Lucene's default constant-score rewrite.
 - **SQLite FTS5** (`unicode61` tokenizer) — full-text `MATCH`.
 - **SQLite Index** — a plain table with a B-tree index on the headword, queried by **exact
   match** (`= value`, no `LIKE`).
@@ -53,11 +58,15 @@ Console host (Windows/macOS/Linux):
 
 ```pwsh
 $env:BENCH_DATASETS = "1000,1000000,collection"
-$env:BENCH_ENGINES  = "lucene,fts5"
+$env:BENCH_ENGINES  = "lucene,fts5,index"
 $env:BENCH_COLLECTION_DB = "$PWD/Test/Collection.db"
 $env:BENCH_RESULTS_DIR   = "$PWD/results"
 dotnet run --project src/Benchmarks.ConsoleRunner -c Release
 ```
+
+Set `BENCH_QUERY_WARMUP` to change the warmup rounds (0 disables them),
+`BENCH_QUERY_REPEAT` to change the timed rounds, or `BENCH_QUERY_TOPN` to change the
+result limit.
 
 MAUI app: build/deploy `src/MauiBenchmark` to a device, pick datasets/engines, tap **Run**.
 
@@ -72,7 +81,7 @@ MAUI app: build/deploy `src/MauiBenchmark` to a device, pick datasets/engines, t
 Trigger with:
 
 ```sh
-gh workflow run "FTS Benchmark" -f datasets=1000,1000000,collection -f engines=lucene,fts5
+gh workflow run "FTS Benchmark" -f datasets=1000,1000000,collection -f engines=lucene,fts5,index
 # optional: -f only_android=true  or  -f only_ios=true
 ```
 

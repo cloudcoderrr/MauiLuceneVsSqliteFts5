@@ -16,7 +16,8 @@ public sealed class BenchmarkConfig
 
     public int InsertCount { get; set; } = 1_000;
     public int QueryTopN { get; set; } = 50;
-    public int QueryRepeat { get; set; } = 5;
+    public int QueryWarmupRounds { get; set; } = 15;
+    public int QueryRepeat { get; set; } = 30;
 
     /// <summary>Path to the (reassembled) Collection.db, or null to skip the Collection dataset.</summary>
     public string? CollectionDbPath { get; set; }
