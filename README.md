@@ -88,55 +88,112 @@ gh workflow run "FTS Benchmark" -f datasets=1000,1000000,collection -f engines=l
 Results (`bench-results.json` / `bench-results.md`) and the Android APK are uploaded as
 artifacts and summarized in the workflow run summary.
 
-## Results (Release / AOT)
+## Results with query warmup
 
-Measured on GitHub-hosted runners with .NET 10, comparing **Lucene.NET**, **SQLite FTS5**, and a
-plain **SQLite Index** (B-tree on the headword, exact match). Hit counts are identical across
-platforms, confirming correctness and the shared `collation_en_us` English collation. Windows is
-Release/JIT; Android and iOS are Release + **AOT**.
+The Windows, Android, and iOS CI results are from [this benchmark run](https://github.com/cloudcoderrr/MauiLuceneVsSqliteFts5/actions/runs/44997677151).
+The local Windows run independently used the same datasets and query settings.
+Every run requested up to 50 results, with 15 warmup and 30 timed rounds per query.
 
-### Index build time (ms) & storage
+| Runner | OS | Architecture | Logical CPUs | Runtime | Build | Run time (s) |
+|---|---|---|---|---|---|--:|
+| Windows CI | Microsoft Windows 10.0.26100 | X64 | 4 | .NET 10.0.15 | Release / JIT | 121 |
+| Android CI | 14 | X64 | 2 | .NET 10.0.15 | Release / AOT | 199 |
+| iOS CI | 26.5 | Arm64 | 3 | .NET 10.0.15 | Release / AOT | 185 |
+| Windows local | Microsoft Windows 10.0.19045 | X64 | 4 | .NET 10.0.14 | Release / JIT | 230 |
 
-| Engine | Dataset | Windows | Android | iOS | Storage |
+### Index build time (ms)
+
+| Engine | Dataset | Windows CI | Android CI | iOS CI | Windows local |
 |---|---|--:|--:|--:|--:|
-| Lucene.NET | 1,000 | 743 | 614 | 413 | 70 KB |
-| SQLite FTS5 | 1,000 | 318 | 75 | 51 | 436 KB |
-| SQLite Index | 1,000 | 68 | 24 | 10 | 288 KB |
-| Lucene.NET | 1,000,000 | 14,330 | 76,922 | 39,174 | 60.7 MB |
-| SQLite FTS5 | 1,000,000 | 11,511 | 20,039 | 46,294 | 394 MB |
-| SQLite Index | 1,000,000 | 5,195 | 11,253 | 5,351 | 267 MB |
-| Lucene.NET | Collection.db | 25,607 | 91,193 | 54,561 | 169 MB |
-| SQLite FTS5 | Collection.db | 21,294 | 28,261 | 27,453 | 1.05 GB |
-| SQLite Index | Collection.db | 8,761 | 12,047 | 9,486 | 808 MB |
+| Lucene.NET | 1,000 synthetic | 701 | 757 | 290 | 1,295 |
+| SQLite FTS5 | 1,000 synthetic | 229 | 88 | 28 | 107 |
+| SQLite Index | 1,000 synthetic | 54 | 36 | 9 | 35 |
+| Lucene.NET | 1,000,000 synthetic | 14,061 | 40,460 | 33,199 | 22,257 |
+| SQLite FTS5 | 1,000,000 synthetic | 11,556 | 15,984 | 13,475 | 30,435 |
+| SQLite Index | 1,000,000 synthetic | 5,144 | 7,835 | 5,746 | 20,116 |
+| Lucene.NET | Collection.db | 25,479 | 56,905 | 54,002 | 46,010 |
+| SQLite FTS5 | Collection.db | 21,650 | 24,359 | 22,314 | 40,543 |
+| SQLite Index | Collection.db | 8,391 | 8,433 | 10,543 | 24,440 |
 
-### Query latency — Collection.db (322,943 rows), ms (avg of 5)
+### Insert time for 1,000 records (total ms / ms per record)
 
-| Engine | Query | Windows | Android | iOS | Hits |
+| Engine | Dataset | Windows CI | Android CI | iOS CI | Windows local |
 |---|---|--:|--:|--:|--:|
-| Lucene.NET | Simple (term) | 29.8 | 18.5 | 5.5 | 278,524 |
-| Lucene.NET | Fuzzy (1 edit) | 41.3 | 23.0 | 11.3 | 278,527 |
-| Lucene.NET | Fuzzy (2 edits) | 27.2 | 55.0 | 29.4 | 278,530 |
-| Lucene.NET | Wildcard (`cont*`) | 6.0 | 15.3 | 6.9 | 278,608 |
-| Lucene.NET | Regexp (`cont.*`) | 6.0 | 15.2 | 7.0 | 278,608 |
-| Lucene.NET | Leading wildcard (`*iner`) | 51.4 | 217.1 | 112.9 | 278,531 |
-| SQLite FTS5 | Simple (`MATCH`) | 308.5 | 340.2 | 259.4 | 278,524 |
-| SQLite Index | Exact match (`= value`) | 0.03 | 0.03 | 0.03 | 1 |
+| Lucene.NET | 1,000 synthetic | 94 / 0.094 | 61 / 0.061 | 45 / 0.045 | 165 / 0.165 |
+| SQLite FTS5 | 1,000 synthetic | 44 / 0.044 | 26 / 0.026 | 8 / 0.008 | 31 / 0.031 |
+| SQLite Index | 1,000 synthetic | 32 / 0.032 | 22 / 0.022 | 5 / 0.005 | 24 / 0.024 |
+| Lucene.NET | 1,000,000 synthetic | 52 / 0.052 | 65 / 0.065 | 35 / 0.035 | 57 / 0.057 |
+| SQLite FTS5 | 1,000,000 synthetic | 111 / 0.111 | 18 / 0.018 | 31 / 0.031 | 64 / 0.064 |
+| SQLite Index | 1,000,000 synthetic | 933 / 0.933 | 37 / 0.037 | 79 / 0.079 | 189 / 0.189 |
+| Lucene.NET | Collection.db | 40 / 0.040 | 47 / 0.047 | 50 / 0.050 | 66 / 0.066 |
+| SQLite FTS5 | Collection.db | 96 / 0.096 | 22 / 0.022 | 28 / 0.028 | 57 / 0.057 |
+| SQLite Index | Collection.db | 173 / 0.173 | 13 / 0.013 | 14 / 0.014 | 68 / 0.068 |
 
-Synthetic 1k/1M query numbers and the full per-platform tables are in the run artifacts.
+### Index storage after build
 
-### Takeaways
+| Engine | Dataset | Windows CI | Android CI | iOS CI | Windows local |
+|---|---|--:|--:|--:|--:|
+| Lucene.NET | 1,000 synthetic | 70.11 KB | 70.11 KB | 70.1 KB | 70.11 KB |
+| SQLite FTS5 | 1,000 synthetic | 436 KB | 436 KB | 436 KB | 436 KB |
+| SQLite Index | 1,000 synthetic | 288 KB | 288 KB | 288 KB | 288 KB |
+| Lucene.NET | 1,000,000 synthetic | 60.68 MB | 60.68 MB | 60.68 MB | 60.68 MB |
+| SQLite FTS5 | 1,000,000 synthetic | 394.11 MB | 394.11 MB | 394.11 MB | 394.11 MB |
+| SQLite Index | 1,000,000 synthetic | 266.66 MB | 266.66 MB | 266.66 MB | 266.66 MB |
+| Lucene.NET | Collection.db | 169.16 MB | 169.16 MB | 169.16 MB | 169.16 MB |
+| SQLite FTS5 | Collection.db | 1.05 GB | 1.05 GB | 1.05 GB | 1.05 GB |
+| SQLite Index | Collection.db | 807.78 MB | 807.78 MB | 807.78 MB | 807.78 MB |
 
-- **Build speed:** the plain **SQLite Index** builds fastest everywhere (Collection.db 8.8–12 s),
-  then FTS5, then Lucene; on mobile the AOT Lucene build is slowest.
-- **Storage:** Lucene is most compact; the plain index (content + B-tree) is mid-sized; FTS5 is
-  largest because it stores content plus the full inverted index (Collection.db: 169 MB vs
-  808 MB vs 1.05 GB).
-- **Exact match (SQLite Index):** sub-0.1 ms regardless of size — an indexed equality lookup is
-  by far the cheapest query, but only answers exact-key lookups.
-- **Lucene query types:** Simple/Wildcard/Regexp (prefix-anchored) are fastest; **Fuzzy(2)** and
-  **Leading wildcard** are slowest because they enumerate many terms (Leading wildcard on
-  Collection.db: 51–217 ms).
-- **FTS5 full-text:** a high-frequency `MATCH` ranked over ~278k hits is the slow path
-  (259–340 ms); for selective terms it is fast.
-- **AOT matters:** AOT cut Lucene's mobile build time massively vs the Debug interpreter/JIT
-  (e.g. iOS Collection.db build **1,054 s → 55 s**).
+### Mean query latency (ms) and total hits
+
+The synthetic query term is `system`, with patterns `syst*`, `syst.*`, and `*stem`.
+The `Collection.db` query term is `container`, with patterns `cont*`, `cont.*`, and `*iner`.
+Hit counts agreed across all four runs.
+
+#### 1,000 synthetic records
+
+| Engine | Query | Windows CI | Android CI | iOS CI | Windows local | Hits |
+|---|---|--:|--:|--:|--:|--:|
+| Lucene.NET | Simple | 0.16 | 0.10 | 0.07 | 0.16 | 223 |
+| Lucene.NET | Fuzzy(1 edit) | 0.56 | 0.74 | 0.64 | 0.64 | 223 |
+| Lucene.NET | Fuzzy(2 edits) | 1.68 | 2.59 | 2.64 | 1.84 | 223 |
+| Lucene.NET | Wildcard | 0.16 | 0.41 | 0.07 | 0.19 | 223 |
+| Lucene.NET | Regexp | 0.15 | 0.96 | 0.06 | 0.19 | 223 |
+| Lucene.NET | Leading wildcard | 0.16 | 0.36 | 0.05 | 0.16 | 223 |
+| SQLite FTS5 | Simple | 0.28 | 0.72 | 0.22 | 0.47 | 230 |
+| SQLite Index | Exact match | 0.03 | 0.03 | 0.03 | 0.11 | 1 |
+
+#### 1,000,000 synthetic records
+
+| Engine | Query | Windows CI | Android CI | iOS CI | Windows local | Hits |
+|---|---|--:|--:|--:|--:|--:|
+| Lucene.NET | Simple | 2.80 | 10.33 | 6.30 | 2.91 | 231,133 |
+| Lucene.NET | Fuzzy(1 edit) | 3.10 | 12.36 | 6.11 | 3.26 | 231,133 |
+| Lucene.NET | Fuzzy(2 edits) | 3.77 | 14.18 | 7.98 | 4.39 | 231,133 |
+| Lucene.NET | Wildcard | 2.64 | 11.04 | 4.61 | 3.13 | 231,133 |
+| Lucene.NET | Regexp | 2.56 | 8.00 | 6.23 | 3.03 | 231,133 |
+| Lucene.NET | Leading wildcard | 2.68 | 8.50 | 5.44 | 2.74 | 231,133 |
+| SQLite FTS5 | Simple | 277.49 | 235.20 | 227.85 | 411.65 | 241,244 |
+| SQLite Index | Exact match | 0.03 | 0.03 | 0.05 | 0.25 | 4,467 |
+
+#### Collection.db (322,943 records)
+
+| Engine | Query | Windows CI | Android CI | iOS CI | Windows local | Hits |
+|---|---|--:|--:|--:|--:|--:|
+| Lucene.NET | Simple | 3.15 | 7.13 | 6.05 | 3.82 | 278,524 |
+| Lucene.NET | Fuzzy(1 edit) | 5.98 | 17.83 | 12.80 | 6.73 | 278,527 |
+| Lucene.NET | Fuzzy(2 edits) | 11.36 | 54.57 | 40.56 | 14.46 | 278,530 |
+| Lucene.NET | Wildcard | 5.13 | 11.09 | 9.75 | 5.73 | 278,608 |
+| Lucene.NET | Regexp | 5.11 | 11.57 | 11.62 | 5.92 | 278,608 |
+| Lucene.NET | Leading wildcard | 36.68 | 246.21 | 155.64 | 46.13 | 278,531 |
+| SQLite FTS5 | Simple | 312.96 | 229.48 | 272.09 | 405.10 | 278,524 |
+| SQLite Index | Exact match | 0.03 | 0.02 | 0.05 | 0.09 | 1 |
+
+### Observations
+
+- On `Collection.db`, Lucene's `container` term query was the fastest Lucene query in all four
+  runs. It averaged 3.15–7.13 ms, compared with 5.13–11.09 ms for `cont*` and 5.11–11.62 ms
+  for `cont.*`.
+- The leading wildcard `*iner` averaged 36.68–246.21 ms on `Collection.db`. It has to examine
+  a broader range of the term dictionary than the prefix patterns.
+
+The [earlier CI run](https://github.com/cloudcoderrr/MauiLuceneVsSqliteFts5/actions/runs/44987428130) used one warmup and five timed searches per query. See the [previous benchmark tables](https://github.com/cloudcoderrr/MauiLuceneVsSqliteFts5/blob/79e31a41b328104f6f3395430cbcb8023eb5d2c7/README.md#results-release--aot).
