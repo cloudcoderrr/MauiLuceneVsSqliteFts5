@@ -9,6 +9,7 @@ public sealed class BenchmarkConfig
 
     public bool UseLucene { get; set; } = true;
     public bool UseFts5 { get; set; } = true;
+    public bool UseSqliteIndex { get; set; } = true;
 
     public int ThousandCount { get; set; } = 1_000;
     public long MillionCount { get; set; } = 1_000_000;

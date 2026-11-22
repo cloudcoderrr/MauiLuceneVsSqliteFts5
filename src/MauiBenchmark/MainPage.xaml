@@ -26,6 +26,8 @@
                 <Label Text="Lucene.NET" VerticalOptions="Center" />
                 <CheckBox x:Name="EngFts5" IsChecked="True" />
                 <Label Text="SQLite FTS5" VerticalOptions="Center" />
+                <CheckBox x:Name="EngIndex" IsChecked="True" />
+                <Label Text="SQLite Index" VerticalOptions="Center" />
             </HorizontalStackLayout>
 
             <Label x:Name="CollectionPathLabel" Text="Collection.db: (not selected)" FontSize="12" TextColor="Gray" />

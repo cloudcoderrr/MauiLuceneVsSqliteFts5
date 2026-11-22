@@ -70,6 +70,7 @@ public partial class MainPage : ContentPage
 			RunCollection = DsCollection.IsChecked,
 			UseLucene = EngLucene.IsChecked,
 			UseFts5 = EngFts5.IsChecked,
+			UseSqliteIndex = EngIndex.IsChecked,
 			WorkRoot = PlatformSupport.WorkRoot,
 			CollectionDbPath = _collectionDbPath,
 		};

@@ -34,14 +34,22 @@ public sealed class BenchmarkEntry
     public double CreateIndexMs { get; set; }
     public long StorageBytes { get; set; }
 
-    public double QueryMs { get; set; }
-    public string QueryTerm { get; set; } = string.Empty;
-    public long QueryHits { get; set; }
-
     public double InsertTotalMs { get; set; }
     public int InsertCount { get; set; }
     public double InsertAvgMs { get; set; }
 
+    /// <summary>One entry per query type the engine ran (Simple, Fuzzy, Wildcard, ...).</summary>
+    public List<QueryResult> Queries { get; set; } = new();
+
+    public string? Error { get; set; }
+}
+
+/// <summary>Timing for a single query type.</summary>
+public sealed class QueryResult
+{
+    public string Name { get; set; } = string.Empty;
+    public double Ms { get; set; }
+    public long Hits { get; set; }
     public string? Error { get; set; }
 }
 
@@ -57,6 +65,7 @@ public sealed class BenchmarkReport
 [JsonSourceGenerationOptions(WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(BenchmarkReport))]
 [JsonSerializable(typeof(BenchmarkEntry))]
+[JsonSerializable(typeof(QueryResult))]
 [JsonSerializable(typeof(BenchmarkEnvironment))]
 internal partial class BenchmarkJsonContext : JsonSerializerContext
 {

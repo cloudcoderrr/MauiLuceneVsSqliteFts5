@@ -8,8 +8,8 @@ on:
         default: "1000,1000000"
         type: string
       engines:
-        description: "Engines (comma list of lucene,fts5)"
-        default: "lucene,fts5"
+        description: "Engines (comma list of lucene,fts5,index)"
+        default: "lucene,fts5,index"
         type: string
       million_count:
         description: "Record count used for the large synthetic dataset"
@@ -30,7 +30,7 @@ concurrency:
 
 env:
   DATASETS: ${{ github.event.inputs.datasets || '1000,1000000' }}
-  ENGINES: ${{ github.event.inputs.engines || 'lucene,fts5' }}
+  ENGINES: ${{ github.event.inputs.engines || 'lucene,fts5,index' }}
   MILLION_COUNT: ${{ github.event.inputs.million_count || '1000000' }}
 
 jobs:

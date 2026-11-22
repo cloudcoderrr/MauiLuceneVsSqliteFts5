@@ -84,18 +84,26 @@ public sealed class Fts5SearchEngine : ISearchEngine
 
     public void PrepareQuery() => _queryConn = Open(readOnly: true);
 
-    public long CountHits(string term)
+    public IReadOnlyList<EngineQuery> GetQueries(IDocumentSource source)
     {
         var conn = _queryConn ?? throw new InvalidOperationException("Call PrepareQuery first.");
+        string term = source.QueryTerm;
+        return new List<EngineQuery>
+        {
+            new EngineQuery("Simple", () => CountMatch(conn, term), topN => RunMatch(conn, term, topN)),
+        };
+    }
+
+    private static long CountMatch(SqliteConnection conn, string term)
+    {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM docs WHERE docs MATCH $q";
         cmd.Parameters.AddWithValue("$q", term);
         return Convert.ToInt64(cmd.ExecuteScalar());
     }
 
-    public int RunQuery(string term, int topN)
+    private static int RunMatch(SqliteConnection conn, string term, int topN)
     {
-        var conn = _queryConn ?? throw new InvalidOperationException("Call PrepareQuery first.");
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT rowid FROM docs WHERE docs MATCH $q ORDER BY rank LIMIT $n";
         cmd.Parameters.AddWithValue("$q", term);

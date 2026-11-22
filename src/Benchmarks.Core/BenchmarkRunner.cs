@@ -46,6 +46,7 @@ public sealed class BenchmarkRunner
     {
         if (_config.UseLucene) yield return "Lucene.NET";
         if (_config.UseFts5) yield return "SQLite FTS5";
+        if (_config.UseSqliteIndex) yield return "SQLite Index";
     }
 
     private List<DatasetSpec> BuildDatasets()
@@ -84,7 +85,6 @@ public sealed class BenchmarkRunner
         try
         {
             var source = dataset.Factory();
-            entry.QueryTerm = source.QueryTerm;
             engine = CreateEngine(engineName, workDir);
 
             _log?.Invoke($"[{engineName}] {dataset.Name}: building index...");
@@ -100,18 +100,32 @@ public sealed class BenchmarkRunner
 
             ct.ThrowIfCancellationRequested();
 
-            // Query (average of several runs after a warmup).
+            // Run each query type the engine supports (average of several runs after a warmup).
             engine.PrepareQuery();
-            entry.QueryHits = engine.CountHits(source.QueryTerm);
-            engine.RunQuery(source.QueryTerm, _config.QueryTopN); // warmup
-            var qsw = Stopwatch.StartNew();
-            for (int i = 0; i < _config.QueryRepeat; i++)
+            foreach (var q in engine.GetQueries(source))
             {
-                engine.RunQuery(source.QueryTerm, _config.QueryTopN);
+                ct.ThrowIfCancellationRequested();
+                var qr = new QueryResult { Name = q.Name };
+                try
+                {
+                    qr.Hits = q.CountHits();
+                    q.Run(_config.QueryTopN); // warmup
+                    var qsw = Stopwatch.StartNew();
+                    for (int i = 0; i < _config.QueryRepeat; i++)
+                    {
+                        q.Run(_config.QueryTopN);
+                    }
+                    qsw.Stop();
+                    qr.Ms = qsw.Elapsed.TotalMilliseconds / Math.Max(1, _config.QueryRepeat);
+                    _log?.Invoke($"[{engineName}] {dataset.Name}: {q.Name} {qr.Ms:N2} ms avg, {qr.Hits:N0} hits");
+                }
+                catch (Exception ex)
+                {
+                    qr.Error = ex.Message;
+                    _log?.Invoke($"[{engineName}] {dataset.Name}: {q.Name} ERROR {ex.Message}");
+                }
+                entry.Queries.Add(qr);
             }
-            qsw.Stop();
-            entry.QueryMs = qsw.Elapsed.TotalMilliseconds / Math.Max(1, _config.QueryRepeat);
-            _log?.Invoke($"[{engineName}] {dataset.Name}: query '{source.QueryTerm}' {entry.QueryMs:N2} ms avg, {entry.QueryHits:N0} hits");
 
             ct.ThrowIfCancellationRequested();
 
@@ -147,6 +161,7 @@ public sealed class BenchmarkRunner
     {
         "Lucene.NET" => new LuceneSearchEngine(workDir),
         "SQLite FTS5" => new Fts5SearchEngine(workDir),
+        "SQLite Index" => new SqliteIndexSearchEngine(workDir),
         _ => throw new ArgumentOutOfRangeException(nameof(engineName), engineName, "Unknown engine"),
     };
 
@@ -209,17 +224,32 @@ public sealed class BenchmarkRunner
         sb.AppendLine($"- Started (UTC): {report.StartedUtc:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine($"- Duration: {(report.FinishedUtc - report.StartedUtc).TotalSeconds:N0} s");
         sb.AppendLine();
-        sb.AppendLine("| Engine | Dataset | Records | Create index | Query (avg) | Hits | Insert total | Insert avg | Storage |");
-        sb.AppendLine("|---|---|--:|--:|--:|--:|--:|--:|--:|");
+        sb.AppendLine("| Engine | Dataset | Records | Create index | Insert total | Insert avg | Storage |");
+        sb.AppendLine("|---|---|--:|--:|--:|--:|--:|");
         foreach (var e in report.Entries)
         {
             if (e.Error is not null)
             {
-                sb.AppendLine($"| {e.Engine} | {e.Dataset} | - | ERROR: {e.Error} | | | | | |");
+                sb.AppendLine($"| {e.Engine} | {e.Dataset} | - | ERROR: {e.Error} | | | |");
                 continue;
             }
             sb.AppendLine(
-                $"| {e.Engine} | {e.Dataset} | {e.RecordCount:N0} | {e.CreateIndexMs:N0} ms | {e.QueryMs:N2} ms | {e.QueryHits:N0} | {e.InsertTotalMs:N0} ms | {e.InsertAvgMs:N3} ms | {FormatBytes(e.StorageBytes)} |");
+                $"| {e.Engine} | {e.Dataset} | {e.RecordCount:N0} | {e.CreateIndexMs:N0} ms | {e.InsertTotalMs:N0} ms | {e.InsertAvgMs:N3} ms | {FormatBytes(e.StorageBytes)} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("### Queries (average)");
+        sb.AppendLine();
+        sb.AppendLine("| Engine | Dataset | Query | Time (avg) | Hits |");
+        sb.AppendLine("|---|---|---|--:|--:|");
+        foreach (var e in report.Entries)
+        {
+            foreach (var q in e.Queries)
+            {
+                string time = q.Error is not null ? $"ERROR: {q.Error}" : $"{q.Ms:N2} ms";
+                string hits = q.Error is not null ? string.Empty : $"{q.Hits:N0}";
+                sb.AppendLine($"| {e.Engine} | {e.Dataset} | {q.Name} | {time} | {hits} |");
+            }
         }
         return sb.ToString();
     }

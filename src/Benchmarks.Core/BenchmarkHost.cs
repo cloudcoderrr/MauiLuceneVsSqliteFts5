@@ -36,7 +36,8 @@ public static class BenchmarkHost
         if (engines.Count > 0)
         {
             config.UseLucene = engines.Contains("lucene");
-            config.UseFts5 = engines.Contains("fts5") || engines.Contains("sqlite");
+            config.UseFts5 = engines.Contains("fts5");
+            config.UseSqliteIndex = engines.Contains("index") || engines.Contains("sqliteindex");
         }
 
         var collection = get("COLLECTION_DB");

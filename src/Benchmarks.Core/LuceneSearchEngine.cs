@@ -79,19 +79,30 @@ public sealed class LuceneSearchEngine : ISearchEngine
         _searcher = new IndexSearcher(_reader);
     }
 
-    public long CountHits(string term)
+    public IReadOnlyList<EngineQuery> GetQueries(IDocumentSource source)
     {
         var searcher = _searcher ?? throw new InvalidOperationException("Call PrepareQuery first.");
-        var query = new TermQuery(new Term(ContentField, term.ToLowerInvariant()));
-        return searcher.Search(query, 1).TotalHits;
+        string term = source.QueryTerm.ToLowerInvariant();
+        string prefix = term.Length <= 4 ? term : term.Substring(0, 4);
+        string suffix = term.Length <= 4 ? term : term.Substring(term.Length - 4);
+
+        return new List<EngineQuery>
+        {
+            Make("Simple", new TermQuery(new Term(ContentField, term)), searcher),
+            Make("Fuzzy(1 edit)", new FuzzyQuery(new Term(ContentField, term), 1), searcher),
+            Make("Fuzzy(2 edits)", new FuzzyQuery(new Term(ContentField, term), 2), searcher),
+            Make("Wildcard", new WildcardQuery(new Term(ContentField, prefix + "*")), searcher),
+            Make("Regexp", new RegexpQuery(new Term(ContentField, prefix + ".*")), searcher),
+            Make("Leading wildcard", new WildcardQuery(new Term(ContentField, "*" + suffix)), searcher),
+        };
     }
 
-    public int RunQuery(string term, int topN)
+    private static EngineQuery Make(string name, Query query, IndexSearcher searcher)
     {
-        var searcher = _searcher ?? throw new InvalidOperationException("Call PrepareQuery first.");
-        var query = new TermQuery(new Term(ContentField, term.ToLowerInvariant()));
-        var hits = searcher.Search(query, topN);
-        return hits.ScoreDocs.Length;
+        return new EngineQuery(
+            name,
+            () => searcher.Search(query, 1).TotalHits,
+            topN => searcher.Search(query, topN).ScoreDocs.Length);
     }
 
     public void Insert(IReadOnlyList<SearchDocument> documents)
